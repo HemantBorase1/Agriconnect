@@ -19,7 +19,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { User, LogOut, Settings, ShoppingCart, Cloud, Newspaper, Menu } from 'lucide-react';
+import { User, LogOut, Settings, ShoppingCart, Cloud, Newspaper, Menu,Book } from 'lucide-react';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -44,8 +44,10 @@ export default function Navbar() {
     { href: '/', label: 'Home' },
     { href: '/features', label: 'Features' },
     { href: '/marketplace', label: 'Marketplace', icon: ShoppingCart },
+    {href: '/guide',label:'Guide',icon:Book},
     { href: '/weather', label: 'Weather', icon: Cloud },
     { href: '/news', label: 'News', icon: Newspaper },
+    
   ];
 
   return (
