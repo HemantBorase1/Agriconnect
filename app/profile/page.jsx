@@ -1,0 +1,548 @@
+'use client'
+
+import React, { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { Package, Plus, Edit, Trash2, Leaf, MapPin, DollarSign, Calendar, Upload } from 'lucide-react'
+
+export default function ProfilePage() {
+  // Mocked user; replace with real auth/user state later
+  const [user, setUser] = useState({
+    name: 'John Doe',
+    email: 'john@example.com',
+    profile_picture_url: '',
+    role: 'farmer', // 'farmer' | 'vendor'
+    address: 'Pune, Maharashtra',
+  })
+
+  const [editData, setEditData] = useState({
+    name: user.name,
+    role: user.role,
+    address: user.address,
+  })
+
+  const [profileImage, setProfileImage] = useState(null)
+  const [imagePreview, setImagePreview] = useState(user.profile_picture_url || '')
+
+  // Mock products data - replace with real API calls later
+  const [products, setProducts] = useState([
+    {
+      id: 1,
+      name: 'Fresh Organic Tomatoes',
+      description: 'Freshly harvested organic tomatoes from our farm',
+      price: 45,
+      unit: 'kg',
+      quantity_available: 50,
+      category: 'vegetables',
+      location: 'Pune, Maharashtra',
+      is_organic: true,
+      image_url: '',
+      created_at: '2024-01-15',
+    },
+    {
+      id: 2,
+      name: 'Premium Basmati Rice',
+      description: 'High quality basmati rice, perfect for daily cooking',
+      price: 120,
+      unit: 'kg',
+      quantity_available: 25,
+      category: 'grains',
+      location: 'Pune, Maharashtra',
+      is_organic: false,
+      image_url: '',
+      created_at: '2024-01-10',
+    },
+  ])
+
+  const [showFarmerPopup, setShowFarmerPopup] = useState(false)
+  const [isEditingRole, setIsEditingRole] = useState(false)
+
+  // Product edit dialog state
+  const [isProductDialogOpen, setIsProductDialogOpen] = useState(false)
+  const [editingProductId, setEditingProductId] = useState(null)
+  const [productEdit, setProductEdit] = useState({
+    name: '',
+    description: '',
+    price: 0,
+    unit: '',
+    quantity_available: 0,
+    category: '',
+    location: '',
+    is_organic: false,
+    image_url: '',
+  })
+  const [productImagePreview, setProductImagePreview] = useState('')
+  const categories = ['vegetables','fruits','grains','pulses','spices','herbs','dairy','others']
+  const units = ['kg','gram','liter','piece','dozen','quintal','ton']
+
+  const router = useRouter()
+
+  const onSaveProfile = () => {
+    const previousRole = user.role
+    setUser((prev) => ({ 
+      ...prev, 
+      name: editData.name, 
+      role: editData.role,
+      address: editData.address,
+      profile_picture_url: imagePreview || prev.profile_picture_url,
+    }))
+    setIsEditingRole(false)
+    
+    // Show popup if user changed to farmer role
+    if (previousRole !== 'farmer' && editData.role === 'farmer') {
+      setShowFarmerPopup(true)
+    }
+  }
+
+  const onLogout = () => {
+    // TODO: clear auth state/session
+    router.push('/auth/signin')
+  }
+
+  const onDeleteAccount = () => {
+    // TODO: call delete API and clear auth state
+    router.push('/auth/signin')
+  }
+
+  const onAddProducts = () => {
+    setShowFarmerPopup(false)
+    router.push('/become-seller')
+  }
+
+  const onDeleteProduct = (productId) => {
+    setProducts(prev => prev.filter(p => p.id !== productId))
+  }
+
+  const onEditProduct = (productId) => {
+    const product = products.find(p => p.id === productId)
+    if (!product) return
+    setEditingProductId(productId)
+    setProductEdit({
+      name: product.name,
+      description: product.description,
+      price: product.price,
+      unit: product.unit,
+      quantity_available: product.quantity_available,
+      category: product.category,
+      location: product.location,
+      is_organic: product.is_organic,
+      image_url: product.image_url,
+    })
+    setProductImagePreview(product.image_url || '')
+    setIsProductDialogOpen(true)
+  }
+
+  const onSaveProduct = () => {
+    if (editingProductId == null) return
+    setProducts(prev => prev.map(p => p.id === editingProductId ? {
+      ...p,
+      ...productEdit,
+      image_url: productImagePreview,
+    } : p))
+    setIsProductDialogOpen(false)
+    setEditingProductId(null)
+  }
+
+  const onChangeProfileImage = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setProfileImage(file)
+      const reader = new FileReader()
+      reader.onload = (ev) => setImagePreview(ev.target?.result || '')
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const onChangeProductImage = (e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      const reader = new FileReader()
+      reader.onload = (ev) => setProductImagePreview(ev.target?.result || '')
+      reader.readAsDataURL(file)
+    }
+  }
+
+  const roleLabel = user.role === 'farmer' ? 'Farmer' : 'Vendor'
+
+  return (
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Profile Header */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-3xl font-bold text-gray-900">Profile</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-6">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={user.profile_picture_url} alt={user.name} />
+                <AvatarFallback className="text-2xl">{user.name?.charAt(0) || 'U'}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-2xl font-semibold text-gray-900">{user.name}</p>
+                  <Badge variant="secondary" className="capitalize text-sm px-3 py-1">
+                    {roleLabel}
+                  </Badge>
+                </div>
+                <p className="text-gray-600 text-lg">{user.email}</p>
+              </div>
+            </div>
+
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button className="w-full" size="lg">
+                    <Edit className="w-4 h-4 mr-2" />
+                    Edit Profile
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Profile</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="photo" className="flex items-center">Profile Photo</Label>
+                      <div className="flex items-center gap-4">
+                        <Avatar className="h-14 w-14">
+                          <AvatarImage src={imagePreview} alt={editData.name} />
+                          <AvatarFallback>{editData.name?.charAt(0) || 'U'}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <input id="photo" type="file" accept="image/*" className="hidden" onChange={onChangeProfileImage} />
+                          <Button type="button" variant="outline" onClick={() => document.getElementById('photo')?.click()} className="flex items-center">
+                            <Upload className="w-4 h-4 mr-2" />
+                            Upload Photo
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Name</Label>
+                      <Input
+                        id="name"
+                        value={editData.name}
+                        onChange={(e) => setEditData((d) => ({ ...d, name: e.target.value }))}
+                        placeholder="Your name"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select
+                        value={editData.role}
+                        onValueChange={(value) => setEditData((d) => ({ ...d, role: value }))}
+                      >
+                        <SelectTrigger id="role">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="farmer">Farmer</SelectItem>
+                          <SelectItem value="vendor">Vendor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="address">Address</Label>
+                      <Input
+                        id="address"
+                        value={editData.address}
+                        onChange={(e) => setEditData((d) => ({ ...d, address: e.target.value }))}
+                        placeholder="Your address"
+                      />
+                    </div>
+
+                    
+
+                    <div className="pt-2">
+                      <Button className="w-full" onClick={onSaveProfile}>
+                        Save Changes
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full" size="lg">
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete Account
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete your account?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete your account and remove your data from our servers.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={onDeleteAccount}>
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
+              <Button variant="outline" className="w-full" size="lg" onClick={onLogout}>
+                Logout
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Products Section for Farmers */}
+        {user.role === 'farmer' && (
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Package className="h-6 w-6 text-green-600" />
+                  <CardTitle className="text-2xl font-bold text-gray-900">My Products</CardTitle>
+                </div>
+                <Button onClick={() => router.push('/become-seller')} className="bg-green-600 hover:bg-green-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Product
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {products.length === 0 ? (
+                <div className="text-center py-12">
+                  <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
+                  <p className="text-gray-600 mb-6">Start by adding your first product to the marketplace</p>
+                  <Button onClick={() => router.push('/become-seller')} className="bg-green-600 hover:bg-green-700">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Your First Product
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {products.map((product) => (
+                    <Card key={product.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                      <div className="aspect-square bg-gray-100 flex items-center justify-center">
+                        {product.image_url ? (
+                          <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Package className="h-12 w-12 text-gray-400" />
+                        )}
+                      </div>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <h3 className="font-semibold text-lg text-gray-900 line-clamp-1">{product.name}</h3>
+                          {product.is_organic && (
+                            <Badge variant="secondary" className="bg-green-100 text-green-800">
+                              <Leaf className="w-3 h-3 mr-1" />
+                              Organic
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
+                        
+                        <div className="space-y-2 mb-4">
+                          <div className="flex items-center text-sm text-gray-600">
+                            <DollarSign className="w-4 h-4 mr-1" />
+                            ₹{product.price} per {product.unit}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Package className="w-4 h-4 mr-1" />
+                            {product.quantity_available} {product.unit} available
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <MapPin className="w-4 h-4 mr-1" />
+                            {product.location}
+                          </div>
+                          <div className="flex items-center text-sm text-gray-600">
+                            <Calendar className="w-4 h-4 mr-1" />
+                            Added {new Date(product.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="flex-1"
+                            onClick={() => onEditProduct(product.id)}
+                          >
+                            <Edit className="w-4 h-4 mr-1" />
+                            Edit
+                          </Button>
+                          <Button 
+                            variant="destructive" 
+                            size="sm" 
+                            onClick={() => onDeleteProduct(product.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Farmer Role Selection Popup */}
+        <Dialog open={showFarmerPopup} onOpenChange={setShowFarmerPopup}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5 text-green-600" />
+                Welcome to AgriConnect as a Farmer!
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Great! You've selected the Farmer role. Would you like to add your organic products to our marketplace?
+              </p>
+              <p className="text-sm text-gray-500">
+                This will help you reach more buyers and grow your farming business.
+              </p>
+              <div className="flex gap-3 pt-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => setShowFarmerPopup(false)}
+                  className="flex-1"
+                >
+                  Maybe Later
+                </Button>
+                <Button 
+                  onClick={onAddProducts}
+                  className="flex-1 bg-green-600 hover:bg-green-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add Products
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+        {/* Edit Product Dialog */}
+        <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Edit Product</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label className="flex items-center">Product Image</Label>
+                <div className="flex items-center gap-4">
+                  <div className="h-16 w-16 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
+                    {productImagePreview ? (
+                      <img src={productImagePreview} alt="Preview" className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="w-6 h-6 text-gray-400" />
+                    )}
+                  </div>
+                  <div>
+                    <input id="product-photo" type="file" accept="image/*" className="hidden" onChange={onChangeProductImage} />
+                    <Button type="button" variant="outline" onClick={() => document.getElementById('product-photo')?.click()} className="flex items-center">
+                      <Upload className="w-4 h-4 mr-2" />
+                      Upload Photo
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pname">Product Name</Label>
+                  <Input id="pname" value={productEdit.name} onChange={(e) => setProductEdit(d => ({ ...d, name: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pcategory">Category</Label>
+                  <Select value={productEdit.category} onValueChange={(v) => setProductEdit(d => ({ ...d, category: v }))}>
+                    <SelectTrigger id="pcategory">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pdesc">Description</Label>
+                <Input id="pdesc" value={productEdit.description} onChange={(e) => setProductEdit(d => ({ ...d, description: e.target.value }))} />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="pprice">Price (₹)</Label>
+                  <Input id="pprice" type="number" value={productEdit.price} onChange={(e) => setProductEdit(d => ({ ...d, price: Number(e.target.value) }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="punit">Unit</Label>
+                  <Select value={productEdit.unit} onValueChange={(v) => setProductEdit(d => ({ ...d, unit: v }))}>
+                    <SelectTrigger id="punit">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {units.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pqty">Available Quantity</Label>
+                  <Input id="pqty" type="number" value={productEdit.quantity_available} onChange={(e) => setProductEdit(d => ({ ...d, quantity_available: Number(e.target.value) }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="plocation">Location</Label>
+                  <Input id="plocation" value={productEdit.location} onChange={(e) => setProductEdit(d => ({ ...d, location: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="porganic">Organic</Label>
+                  <Select value={productEdit.is_organic ? 'yes' : 'no'} onValueChange={(v) => setProductEdit(d => ({ ...d, is_organic: v === 'yes' }))}>
+                    <SelectTrigger id="porganic">
+                      <SelectValue placeholder="Is organic?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="yes">Yes</SelectItem>
+                      <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <Button className="w-full" onClick={onSaveProduct}>Save Product</Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </div>
+  )
+}
+

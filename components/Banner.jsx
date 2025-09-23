@@ -41,6 +41,7 @@ export default function Banner() {
 
   const banner = banners[currentBanner];
 
+
   return (
     <div className="relative bg-gradient-to-r from-green-500 to-blue-500 text-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">

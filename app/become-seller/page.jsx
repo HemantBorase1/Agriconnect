@@ -69,7 +69,7 @@ export default function BecomeSellerPage() {
     setTimeout(() => {
       setSuccess(true)
       setIsLoading(false)
-      setTimeout(() => router.push('/marketplace'), 2000)
+      setTimeout(() => router.push('/profile'), 2000)
     }, 1000)
   }
 
@@ -87,7 +87,7 @@ export default function BecomeSellerPage() {
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-gray-600">
-              Your product has been added to the marketplace. Redirecting...
+              Your product has been added to the marketplace and is now visible in your profile. Redirecting...
             </p>
           </CardContent>
         </Card>
@@ -100,9 +100,9 @@ export default function BecomeSellerPage() {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href="/marketplace" className="flex items-center">
+            <Link href="/profile" className="flex items-center">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Marketplace
+              Back to Profile
             </Link>
           </Button>
           <h1 className="text-4xl font-bold text-gray-900 mb-4">List Your Product</h1>
