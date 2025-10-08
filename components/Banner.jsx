@@ -14,14 +14,14 @@ export default function Banner() {
       {
         id: '1',
         title: 'Welcome to Our Platform 🚀',
-        image_url: '/images/banner1.jpg',
-        link_url: 'https://example.com',
+        image_url: 'https://img.freepik.com/premium-photo/young-indian-farmer-green-agriculture-field_75648-6244.jpg?semt=ais_hybrid&w=300&q=80',
+        link_url: 'https://img.freepik.com/premium-photo/young-indian-farmer-green-agriculture-field_75648-6244.jpg?semt=ais_hybrid&w=740&q=80',
       },
       {
         id: '2',
         title: 'Get 50% Off on Premium 🎉',
-        image_url: '/images/banner2.jpg',
-        link_url: 'https://example.com/offer',
+        image_url: 'https://t3.ftcdn.net/jpg/01/79/21/34/360_F_179213490_XwLljMBYRBUY0hvnr1VhAbYTqcqcs35F.jpg',
+        link_url: 'https://t3.ftcdn.net/jpg/01/79/21/34/360_F_179213490_XwLljMBYRBUY0hvnr1VhAbYTqcqcs35F.jpg',
       },
     ];
     setBanners(mockBanners);

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -19,11 +20,34 @@ export default function SignInPage() {
     setIsLoading(true)
     setError(null)
 
-    // Dummy timeout to simulate sign in
-    setTimeout(() => {
+    const form = e.currentTarget
+    const email = form.querySelector('#email')?.value?.trim()
+    const password = form.querySelector('#password')?.value
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) throw error
+
+      const user = data.user
+      if (!user?.email_confirmed_at) {
+        await supabase.auth.signOut()
+        throw new Error('Please verify your email before signing in.')
+      }
+
+      router.push('/')
+    } catch (err) {
+      console.error(err)
+      const msg = err?.message || ''
+      if (/Invalid login credentials/i.test(msg)) {
+        setError('Invalid email or password')
+      } else if (/Email not confirmed/i.test(msg)) {
+        setError('Please verify your email before signing in.')
+      } else {
+        setError(msg || 'Failed to sign in')
+      }
+    } finally {
       setIsLoading(false)
-      router.push('/') // redirect to homepage
-    }, 1500)
+    }
   }
 
   return (

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -20,20 +20,70 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { User, LogOut, Settings, ShoppingCart, Cloud, Newspaper, Menu,Book } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 🔹 Mock user (replace with real auth later)
-  const user = {
-    name: 'John Doe',
-    email: 'john@example.com',
-    profile_picture_url: '',
-    role: 'farmer', // or 'admin'
-  };
+  const [user, setUser] = useState(null);
 
-  const handleSignOut = () => {
-    console.log('Sign out clicked (placeholder)');
+  useEffect(() => {
+    const loadUser = async () => {
+      const session = await supabase.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      const emailVerified = !!session?.data?.session?.user?.email_confirmed_at;
+      if (!token || !emailVerified) {
+        setUser(null);
+        return;
+      }
+      const resp = await fetch('/api/profile', { headers: { Authorization: `Bearer ${token}` } }).catch(() => null);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      const p = data.profile;
+      const u = data.user;
+      setUser({
+        name: p?.name || '',
+        email: u?.email || '',
+        profile_picture_url: p?.profile_picture_url || '',
+        role: u?.role || 'farmer',
+      });
+    };
+
+    // initial
+    loadUser();
+
+    // subscribe to auth state
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const token = session?.access_token;
+      const emailVerified = !!session?.user?.email_confirmed_at;
+      if (!token || !emailVerified) {
+        setUser(null);
+        return;
+      }
+      // fetch profile for the signed-in user
+      fetch('/api/profile', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (!data) return;
+          const p = data.profile;
+          const u = data.user;
+          setUser({
+            name: p?.name || '',
+            email: u?.email || '',
+            profile_picture_url: p?.profile_picture_url || '',
+            role: u?.role || 'farmer',
+          });
+        });
+    });
+
+    return () => {
+      sub?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUser(null);
   };
 
   const closeMobileMenu = () => {
@@ -234,3 +284,4 @@ export default function Navbar() {
     </nav>
   );
 }
+

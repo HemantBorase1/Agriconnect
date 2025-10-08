@@ -10,12 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { Upload, Loader2 } from 'lucide-react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [profileImage, setProfileImage] = useState(null)
   const [imagePreview, setImagePreview] = useState(null)
   const [role, setRole] = useState('')
+  const [error, setError] = useState(null)
   const router = useRouter()
 
   const handleImageChange = (e) => {
@@ -30,15 +32,73 @@ export default function SignUpPage() {
     }
   }
 
-  const onSubmit = (e) => {
+  const onSubmit = async (e) => {
     e.preventDefault()
     setIsLoading(true)
+    setError(null)
 
-    // Dummy timeout to simulate signup
-    setTimeout(() => {
-      setIsLoading(false)
+    const form = e.currentTarget
+    const name = form.querySelector('#name')?.value?.trim()
+    const email = form.querySelector('#email')?.value?.trim()
+    const password = form.querySelector('#password')?.value
+    const phone = form.querySelector('#phone')?.value?.trim()
+    const aadhaar = form.querySelector('#aadhaar')?.value?.trim()
+    const address = form.querySelector('#address')?.value?.trim()
+    const experience_years = form.querySelector('#experience')?.value?.trim()
+
+    try {
+      const emailRedirectTo = typeof window !== 'undefined' ? `${window.location.origin}/auth/signin` : undefined
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo,
+        },
+      })
+      if (signUpError) throw signUpError
+
+      const userId = signUpData.user?.id
+      if (!userId) {
+        throw new Error('Failed to create account')
+      }
+
+      try {
+        localStorage.setItem('pendingEmail', email)
+      } catch {}
+
+      // Bootstrap application-specific tables via API (server will handle image upload)
+      const resp = await fetch('/api/authentication', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId,
+          email,
+          role,
+          name,
+          phone,
+          aadhaar_number: aadhaar,
+          address,
+          profile_picture_url: imagePreview || null,
+          experience_years,
+          // never send plain password to your DB; server treats this as optional
+          password,
+        }),
+      })
+      if (!resp.ok) {
+        const payload = await resp.json().catch(() => ({}))
+        console.warn('Bootstrap failed', payload)
+        // surface a gentle warning but still allow email verification step
+        setError(payload?.error || 'Account created, but failed to save profile. You can try again after verifying email.')
+      }
+
       router.push('/auth/verify-email')
-    }, 1500)
+    } catch (err) {
+      console.error(err)
+      setError(err.message || 'Failed to create account')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -54,6 +114,11 @@ export default function SignUpPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-6">
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                {error}
+              </div>
+            )}
             {/* Profile Picture */}
             <div className="space-y-2">
               <Label htmlFor="profile-picture">Profile Picture</Label>

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { CheckCircle2, X } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,21 +23,23 @@ import {
 } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { Package, Plus, Edit, Trash2, Leaf, MapPin, DollarSign, Calendar, Upload } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
 
 export default function ProfilePage() {
-  // Mocked user; replace with real auth/user state later
   const [user, setUser] = useState({
-    name: 'John Doe',
-    email: 'john@example.com',
+    name: '',
+    email: '',
     profile_picture_url: '',
-    role: 'farmer', // 'farmer' | 'vendor'
-    address: 'Pune, Maharashtra',
+    role: 'farmer',
+    address: '',
   })
 
   const [editData, setEditData] = useState({
-    name: user.name,
-    role: user.role,
-    address: user.address,
+    name: '',
+    address: '',
+    experience_years: 0,
+    specialties: '',
+    guidance_fees: ''
   })
 
   const [profileImage, setProfileImage] = useState(null)
@@ -94,21 +97,47 @@ export default function ProfilePage() {
   const units = ['kg','gram','liter','piece','dozen','quintal','ton']
 
   const router = useRouter()
+  const [showSaved, setShowSaved] = useState(false)
 
-  const onSaveProfile = () => {
-    const previousRole = user.role
+  const onSaveProfile = async () => {
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session?.data?.session?.access_token
+      if (!token) {
+        router.push('/auth/signin')
+        return
+      }
+
+      const resp = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: editData.name,
+          address: editData.address,
+          profile_picture_url: imagePreview || null,
+          experience_years: editData.experience_years,
+          specialties: editData.specialties,
+          guidance_fees: editData.guidance_fees,
+        })
+      })
+
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}))
+        throw new Error(j.error || 'Failed to update profile')
+      }
+
     setUser((prev) => ({ 
       ...prev, 
       name: editData.name, 
-      role: editData.role,
       address: editData.address,
       profile_picture_url: imagePreview || prev.profile_picture_url,
     }))
-    setIsEditingRole(false)
-    
-    // Show popup if user changed to farmer role
-    if (previousRole !== 'farmer' && editData.role === 'farmer') {
-      setShowFarmerPopup(true)
+    } catch (err) {
+      console.error(err)
+      alert(err.message || 'Failed to update profile')
     }
   }
 
@@ -181,6 +210,43 @@ export default function ProfilePage() {
   }
 
   const roleLabel = user.role === 'farmer' ? 'Farmer' : 'Vendor'
+  const isGuide = user.role === 'farmer' && Number(editData.experience_years) >= 7
+
+  useEffect(() => {
+    async function loadProfile() {
+      const session = await supabase.auth.getSession()
+      const token = session?.data?.session?.access_token
+      if (!token) {
+        router.push('/auth/signin')
+        return
+      }
+      const resp = await fetch('/api/profile', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!resp.ok) {
+        return
+      }
+      const data = await resp.json()
+      const u = data.user
+      const p = data.profile
+      setUser({
+        name: p?.name || '',
+        email: u?.email || '',
+        profile_picture_url: p?.profile_picture_url || '',
+        role: u?.role || 'farmer',
+        address: p?.address || '',
+      })
+      setEditData({
+        name: p?.name || '',
+        address: p?.address || '',
+        experience_years: p?.experience_years || 0,
+        specialties: Array.isArray(p?.specialties) ? p.specialties.join(', ') : (p?.specialties || ''),
+        guidance_fees: p?.guidance_fees ?? '',
+      })
+      setImagePreview(p?.profile_picture_url || '')
+    }
+    loadProfile()
+  }, [router])
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
@@ -248,19 +314,8 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
-                      <Select
-                        value={editData.role}
-                        onValueChange={(value) => setEditData((d) => ({ ...d, role: value }))}
-                      >
-                        <SelectTrigger id="role">
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="farmer">Farmer</SelectItem>
-                          <SelectItem value="vendor">Vendor</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <Label>Role</Label>
+                      <div className="px-3 py-2 border rounded-md bg-gray-50 text-gray-700 capitalize">{roleLabel}</div>
                     </div>
 
                     <div className="space-y-2">
@@ -273,39 +328,48 @@ export default function ProfilePage() {
                       />
                     </div>
 
-                    
+                    {user.role === 'farmer' && (
+                      <>
+                        <div className="space-y-2">
+                          <Label>Years of Farming Experience</Label>
+                          <div className="px-3 py-2 border rounded-md bg-gray-50 text-gray-700">{editData.experience_years}</div>
+                        </div>
+
+                        {isGuide && (
+                          <>
+                            <div className="space-y-2">
+                              <Label htmlFor="specialties">Specialties</Label>
+                              <Input
+                                id="specialties"
+                                placeholder="e.g. Organic Farming, Soil Management"
+                                value={editData.specialties}
+                                onChange={(e) => setEditData((d) => ({ ...d, specialties: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label htmlFor="guidance_fees">Guidance Fees (₹)</Label>
+                              <Input
+                                id="guidance_fees"
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={editData.guidance_fees}
+                                onChange={(e) => setEditData((d) => ({ ...d, guidance_fees: e.target.value }))}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </>
+                    )}
 
                     <div className="pt-2">
-                      <Button className="w-full" onClick={onSaveProfile}>
+                      <Button className="w-full" onClick={async () => { await onSaveProfile(); setShowSaved(true); setTimeout(() => setShowSaved(false), 2500) }}>
                         Save Changes
                       </Button>
                     </div>
                   </div>
                 </DialogContent>
               </Dialog>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" className="w-full" size="lg">
-                    <Trash2 className="w-4 h-4 mr-2" />
-                    Delete Account
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete your account?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your account and remove your data from our servers.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction className="bg-red-600 hover:bg-red-700" onClick={onDeleteAccount}>
-                      Delete
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
 
               <Button variant="outline" className="w-full" size="lg" onClick={onLogout}>
                 Logout
@@ -378,7 +442,7 @@ export default function ProfilePage() {
                           </div>
                           <div className="flex items-center text-sm text-gray-600">
                             <Calendar className="w-4 h-4 mr-1" />
-                            Added {new Date(product.created_at).toLocaleDateString()}
+                            Added {new Date(product.created_at).toISOString().slice(0,10)}
                           </div>
                         </div>
 
@@ -445,25 +509,43 @@ export default function ProfilePage() {
           </DialogContent>
         </Dialog>
         {/* Edit Product Dialog */}
-        <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
+               {/* Edit Product Dialog */}
+                <Dialog open={isProductDialogOpen} onOpenChange={setIsProductDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Edit Product</DialogTitle>
             </DialogHeader>
+
             <div className="space-y-4">
+              {/* Product Image */}
               <div className="space-y-2">
                 <Label className="flex items-center">Product Image</Label>
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 bg-gray-100 rounded-md flex items-center justify-center overflow-hidden">
                     {productImagePreview ? (
-                      <img src={productImagePreview} alt="Preview" className="h-full w-full object-cover" />
+                      <img
+                        src={productImagePreview}
+                        alt="Preview"
+                        className="h-full w-full object-cover"
+                      />
                     ) : (
                       <Package className="w-6 h-6 text-gray-400" />
                     )}
                   </div>
                   <div>
-                    <input id="product-photo" type="file" accept="image/*" className="hidden" onChange={onChangeProductImage} />
-                    <Button type="button" variant="outline" onClick={() => document.getElementById('product-photo')?.click()} className="flex items-center">
+                    <input
+                      id="product-photo"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={onChangeProductImage}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => document.getElementById('product-photo')?.click()}
+                      className="flex items-center"
+                    >
                       <Upload className="w-4 h-4 mr-2" />
                       Upload Photo
                     </Button>
@@ -471,19 +553,32 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {/* Product Form Fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="pname">Product Name</Label>
-                  <Input id="pname" value={productEdit.name} onChange={(e) => setProductEdit(d => ({ ...d, name: e.target.value }))} />
+                  <Input
+                    id="pname"
+                    value={productEdit.name}
+                    onChange={(e) => setProductEdit((d) => ({ ...d, name: e.target.value }))}
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="pcategory">Category</Label>
-                  <Select value={productEdit.category} onValueChange={(v) => setProductEdit(d => ({ ...d, category: v }))}>
+                  <Select
+                    value={productEdit.category}
+                    onValueChange={(v) => setProductEdit((d) => ({ ...d, category: v }))}
+                  >
                     <SelectTrigger id="pcategory">
                       <SelectValue placeholder="Select category" />
                     </SelectTrigger>
                     <SelectContent>
-                      {categories.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
+                      {categories.map((c) => (
+                        <SelectItem key={c} value={c}>
+                          {c}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -491,39 +586,72 @@ export default function ProfilePage() {
 
               <div className="space-y-2">
                 <Label htmlFor="pdesc">Description</Label>
-                <Input id="pdesc" value={productEdit.description} onChange={(e) => setProductEdit(d => ({ ...d, description: e.target.value }))} />
+                <Input
+                  id="pdesc"
+                  value={productEdit.description}
+                  onChange={(e) => setProductEdit((d) => ({ ...d, description: e.target.value }))}
+                />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="pprice">Price (₹)</Label>
-                  <Input id="pprice" type="number" value={productEdit.price} onChange={(e) => setProductEdit(d => ({ ...d, price: Number(e.target.value) }))} />
+                  <Input
+                    id="pprice"
+                    type="number"
+                    value={productEdit.price}
+                    onChange={(e) => setProductEdit((d) => ({ ...d, price: Number(e.target.value) }))}
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="punit">Unit</Label>
-                  <Select value={productEdit.unit} onValueChange={(v) => setProductEdit(d => ({ ...d, unit: v }))}>
+                  <Select
+                    value={productEdit.unit}
+                    onValueChange={(v) => setProductEdit((d) => ({ ...d, unit: v }))}
+                  >
                     <SelectTrigger id="punit">
                       <SelectValue placeholder="Select unit" />
                     </SelectTrigger>
                     <SelectContent>
-                      {units.map(u => (<SelectItem key={u} value={u}>{u}</SelectItem>))}
+                      {units.map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {u}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="pqty">Available Quantity</Label>
-                  <Input id="pqty" type="number" value={productEdit.quantity_available} onChange={(e) => setProductEdit(d => ({ ...d, quantity_available: Number(e.target.value) }))} />
+                  <Input
+                    id="pqty"
+                    type="number"
+                    value={productEdit.quantity_available}
+                    onChange={(e) =>
+                      setProductEdit((d) => ({ ...d, quantity_available: Number(e.target.value) }))
+                    }
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="plocation">Location</Label>
-                  <Input id="plocation" value={productEdit.location} onChange={(e) => setProductEdit(d => ({ ...d, location: e.target.value }))} />
+                  <Input
+                    id="plocation"
+                    value={productEdit.location}
+                    onChange={(e) => setProductEdit((d) => ({ ...d, location: e.target.value }))}
+                  />
                 </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="porganic">Organic</Label>
-                  <Select value={productEdit.is_organic ? 'yes' : 'no'} onValueChange={(v) => setProductEdit(d => ({ ...d, is_organic: v === 'yes' }))}>
+                  <Select
+                    value={productEdit.is_organic ? 'yes' : 'no'}
+                    onValueChange={(v) => setProductEdit((d) => ({ ...d, is_organic: v === 'yes' }))}
+                  >
                     <SelectTrigger id="porganic">
                       <SelectValue placeholder="Is organic?" />
                     </SelectTrigger>
@@ -536,13 +664,34 @@ export default function ProfilePage() {
               </div>
 
               <div className="pt-2">
-                <Button className="w-full" onClick={onSaveProduct}>Save Product</Button>
+                <Button className="w-full" onClick={onSaveProduct}>
+                  Save Product
+                </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* ✅ Saved Toast at bottom */}
+      <SavedToast open={showSaved} onClose={() => setShowSaved(false)} />
     </div>
   )
 }
 
+
+function SavedToast({ open, onClose }) {
+  if (!open) return null
+  return (
+    <div className="fixed bottom-6 right-6 z-50 bg-white shadow-lg border rounded-lg p-4 flex items-center gap-3">
+      <CheckCircle2 className="text-green-600 w-6 h-6" />
+      <div>
+        <p className="font-medium text-gray-900">Changes saved</p>
+        <p className="text-sm text-gray-600">Your profile has been updated.</p>
+      </div>
+      <button onClick={onClose} className="ml-2 text-gray-500 hover:text-gray-700">
+        <X className="w-5 h-5" />
+      </button>
+    </div>
+  )
+}
