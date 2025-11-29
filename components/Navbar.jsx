@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -24,6 +25,7 @@ import { supabase } from '@/lib/supabase';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const router = useRouter();
 
   const [user, setUser] = useState(null);
 
@@ -82,8 +84,23 @@ export default function Navbar() {
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setUser(null);
+    try {
+      // Sign out from Supabase
+      await supabase.auth.signOut();
+      
+      // Clear user state
+      setUser(null);
+      
+      // Redirect to home page
+      router.push('/');
+      router.refresh(); // Force refresh to clear any cached data
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if there's an error, try to redirect and clear state
+      setUser(null);
+      router.push('/');
+      router.refresh();
+    }
   };
 
   const closeMobileMenu = () => {
@@ -93,12 +110,18 @@ export default function Navbar() {
   const navigationItems = [
     { href: '/', label: 'Home' },
     { href: '/features', label: 'Features' },
-    { href: '/marketplace', label: 'Marketplace', icon: ShoppingCart },
-    {href: '/guide',label:'Guide',icon:Book},
-    { href: '/weather', label: 'Weather', icon: Cloud },
-    { href: '/news', label: 'News', icon: Newspaper },
-    
+    { href: '/marketplace', label: 'Marketplace', icon: ShoppingCart, protected: true },
+    { href: '/guide', label: 'Guide', icon: Book, protected: true },
+    { href: '/weather', label: 'Weather', icon: Cloud, protected: true },
+    { href: '/news', label: 'News', icon: Newspaper, protected: true },
   ];
+
+  const handleNavClick = (e, item) => {
+    if (item.protected && !user) {
+      e.preventDefault();
+      window.location.href = '/auth/signin';
+    }
+  };
 
   return (
     <nav className="bg-white shadow-lg border-b sticky top-0 z-50">
@@ -120,6 +143,7 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={(e) => handleNavClick(e, item)}
                 className="flex items-center space-x-1 text-gray-700 hover:text-green-600 transition-colors"
               >
                 {item.icon && <item.icon className="w-4 h-4" />}
@@ -207,7 +231,10 @@ export default function Navbar() {
                     <Link
                       key={item.href}
                       href={item.href}
-                      onClick={closeMobileMenu}
+                      onClick={(e) => {
+                        handleNavClick(e, item);
+                        closeMobileMenu();
+                      }}
                       className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-100 transition-colors"
                     >
                       {item.icon && <item.icon className="w-5 h-5 text-gray-600" />}

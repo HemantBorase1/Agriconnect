@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -15,6 +15,9 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import { Upload, Loader2, Package, Camera, Leaf, ArrowLeft, MapPin, DollarSign } from 'lucide-react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
+import ProtectedRoute from '@/components/ProtectedRoute'
+import { checkAuth } from '@/lib/auth-utils'
 
 const productSchema = z.object({
   name: z.string().min(2, 'Product name must be at least 2 characters'),
@@ -33,6 +36,7 @@ export default function BecomeSellerPage() {
   const [imagePreview, setImagePreview] = useState(null)
   const [error, setError] = useState(null)
   const [success, setSuccess] = useState(false)
+  const [checkingRole, setCheckingRole] = useState(true)
   const router = useRouter()
 
   const {
@@ -52,6 +56,50 @@ export default function BecomeSellerPage() {
   const units = ['kg','gram','liter','piece','dozen','quintal','ton']
   const isOrganic = watch('is_organic')
 
+  // Check if user is vendor and redirect
+  useEffect(() => {
+    async function checkUserRole() {
+      try {
+        const { isAuthenticated } = await checkAuth()
+        if (!isAuthenticated) {
+          router.push('/auth/signin')
+          return
+        }
+        
+        const session = await supabase.auth.getSession()
+        const token = session?.data?.session?.access_token
+        if (!token) {
+          router.push('/auth/signin')
+          return
+        }
+
+        const resp = await fetch('/api/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        
+        if (!resp.ok) {
+          router.push('/marketplace')
+          return
+        }
+
+        const data = await resp.json()
+        const userRole = data.user?.role
+
+        // If user is vendor, redirect to marketplace
+        if (userRole === 'vendor') {
+          router.push('/marketplace')
+          return
+        }
+
+        setCheckingRole(false)
+      } catch (e) {
+        console.error('Error checking user role:', e)
+        router.push('/marketplace')
+      }
+    }
+    checkUserRole()
+  }, [router])
+
   const handleImageChange = (e) => {
     const file = e.target.files?.[0]
     if (file) {
@@ -65,38 +113,88 @@ export default function BecomeSellerPage() {
   const onSubmit = async (data) => {
     setIsLoading(true)
     setError(null)
-    // Placeholder: Replace with your API call to save product
-    setTimeout(() => {
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session?.data?.session?.access_token
+      if (!token) {
+        throw new Error('Please sign in to list a product')
+      }
+
+      const payload = {
+        name: data.name,
+        description: data.description,
+        price: data.price,
+        unit: data.unit,
+        quantity_available: data.quantity_available,
+        category: data.category,
+        location: data.location,
+        is_organic: data.is_organic === true,
+        image_base64: imagePreview || null,
+      }
+
+      const resp = await fetch('/api/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(json.error || 'Failed to create product')
+      }
+
       setSuccess(true)
+      setTimeout(() => router.push('/profile'), 1200)
+    } catch (e) {
+      setError(e?.message || 'Something went wrong')
+    } finally {
       setIsLoading(false)
-      setTimeout(() => router.push('/profile'), 2000)
-    }, 1000)
+    }
+  }
+
+  if (checkingRole) {
+    return (
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-green-600 mx-auto mb-4" />
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </ProtectedRoute>
+    )
   }
 
   if (success) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
-              <Package className="w-8 h-8 text-green-600" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-green-600">
-              Product Listed Successfully!
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <p className="text-gray-600">
-              Your product has been added to the marketplace and is now visible in your profile. Redirecting...
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <ProtectedRoute>
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+                <Package className="w-8 h-8 text-green-600" />
+              </div>
+              <CardTitle className="text-2xl font-bold text-green-600">
+                Product Listed Successfully!
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <p className="text-gray-600">
+                Your product has been added to the marketplace and is now visible in your profile. Redirecting...
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </ProtectedRoute>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">
@@ -244,5 +342,6 @@ export default function BecomeSellerPage() {
         </Card>
       </div>
     </div>
+    </ProtectedRoute>
   )
 }

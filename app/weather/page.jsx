@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { 
   Cloud, 
   Droplets, 
@@ -25,7 +26,7 @@ const mockWeather = {
   icon: '02d'
 };
 
-export default function WeatherPage() {
+function WeatherPage() {
   const [weather, setWeather] = useState(mockWeather);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -102,7 +103,8 @@ export default function WeatherPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -255,6 +257,9 @@ export default function WeatherPage() {
           </Card>
         </div>
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
+
+export default WeatherPage;

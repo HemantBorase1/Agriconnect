@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -9,11 +9,26 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { checkAuth } from '@/lib/auth-utils'
 
 export default function SignInPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const router = useRouter()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    async function checkIfLoggedIn() {
+      const { isAuthenticated } = await checkAuth()
+      if (isAuthenticated) {
+        router.push('/profile')
+      } else {
+        setCheckingAuth(false)
+      }
+    }
+    checkIfLoggedIn()
+  }, [router])
 
   const onSubmit = async (e) => {
     e.preventDefault()
@@ -34,7 +49,7 @@ export default function SignInPage() {
         throw new Error('Please verify your email before signing in.')
       }
 
-      router.push('/')
+      router.push('/profile')
     } catch (err) {
       console.error(err)
       const msg = err?.message || ''
@@ -48,6 +63,14 @@ export default function SignInPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+      </div>
+    )
   }
 
   return (

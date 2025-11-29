@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Upload, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { checkAuth } from '@/lib/auth-utils'
 
 export default function SignUpPage() {
   const [isLoading, setIsLoading] = useState(false)
@@ -18,7 +19,21 @@ export default function SignUpPage() {
   const [imagePreview, setImagePreview] = useState(null)
   const [role, setRole] = useState('')
   const [error, setError] = useState(null)
+  const [checkingAuth, setCheckingAuth] = useState(true)
   const router = useRouter()
+
+  // Redirect if already logged in
+  useEffect(() => {
+    async function checkIfLoggedIn() {
+      const { isAuthenticated } = await checkAuth()
+      if (isAuthenticated) {
+        router.push('/profile')
+      } else {
+        setCheckingAuth(false)
+      }
+    }
+    checkIfLoggedIn()
+  }, [router])
 
   const handleImageChange = (e) => {
     const file = e.target.files?.[0]
@@ -99,6 +114,14 @@ export default function SignUpPage() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+      </div>
+    )
   }
 
   return (

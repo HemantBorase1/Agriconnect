@@ -7,57 +7,20 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Search, Filter, Phone, Mail, MapPin, Leaf, Plus } from 'lucide-react';
+import ProtectedRoute from '@/components/ProtectedRoute';
+import { Search, Filter, Phone, Mail, MapPin, Leaf, Plus, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-// Sample Products Data
-const sampleProducts = [
-  {
-    id: '1',
-    name: 'Organic Tomatoes',
-    description: 'Freshly grown organic tomatoes from local farms.',
-    price: 50,
-    unit: 'kg',
-    quantity_available: 100,
-    image_url: 'https://www.richardjacksonsgarden.co.uk/wp-content/uploads/2021/04/AdobeStock_554658202_1200px.jpg.webp',
-    category: 'vegetables',
-    is_organic: true,
-    created_at: '2025-01-01',
-    farmer: {
-      name: 'Rahul Kumar',
-      phone: '+919876543210',
-      email: 'rahul@example.com',
-      address: 'Village A, District X, State Y',
-      profile_picture_url: null,
-    },
-  },
-  {
-    id: '2',
-    name: 'Fresh Mangoes',
-    description: 'Sweet and juicy organic mangoes.',
-    price: 120,
-    unit: 'kg',
-    quantity_available: 50,
-    image_url: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRHEnqmHwmb3jH5KBntBrMjSocfHUiu3zJKGQ&s',
-    category: 'fruits',
-    is_organic: false,
-    created_at: '2025-01-02',
-    farmer: {
-      name: 'Sunita Sharma',
-      phone: '+919812345678',
-      email: 'sunita@example.com',
-      address: 'Village B, District Y, State Z',
-      profile_picture_url: null,
-    },
-  },
-  // Add more sample products as needed
-];
-
-export default function MarketplacePage() {
-  const [products, setProducts] = useState(sampleProducts);
-  const [filteredProducts, setFilteredProducts] = useState(sampleProducts);
+function MarketplacePage() {
+  const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [organicOnly, setOrganicOnly] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [userRole, setUserRole] = useState(null);
+  const [isCheckingRole, setIsCheckingRole] = useState(true);
 
   const categories = [
     'all',
@@ -71,36 +34,75 @@ export default function MarketplacePage() {
     'others',
   ];
 
+  // Fetch user role
   useEffect(() => {
-    let filtered = products;
-
-    if (searchTerm) {
-      filtered = filtered.filter(product =>
-        product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.category.toLowerCase().includes(searchTerm.toLowerCase())
-      );
+    async function fetchUserRole() {
+      try {
+        const session = await supabase.auth.getSession();
+        const token = session?.data?.session?.access_token;
+        if (!token) {
+          setIsCheckingRole(false);
+          return;
+        }
+        const resp = await fetch('/api/profile', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          setUserRole(data.user?.role || null);
+        }
+      } catch (e) {
+        console.error('Error fetching user role:', e);
+      } finally {
+        setIsCheckingRole(false);
+      }
     }
+    fetchUserRole();
+  }, []);
 
-    if (selectedCategory !== 'all') {
-      filtered = filtered.filter(product =>
-        product.category.toLowerCase() === selectedCategory.toLowerCase()
-      );
+  // Fetch products from API
+  useEffect(() => {
+    async function fetchProducts() {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const params = new URLSearchParams();
+        if (selectedCategory !== 'all') {
+          params.append('category', selectedCategory);
+        }
+        if (searchTerm.trim()) {
+          params.append('search', searchTerm.trim());
+        }
+        if (organicOnly) {
+          params.append('organicOnly', 'true');
+        }
+
+        const resp = await fetch(`/api/marketplace?${params.toString()}`);
+        if (!resp.ok) {
+          throw new Error('Failed to fetch products');
+        }
+        const data = await resp.json();
+        setProducts(data.products || []);
+        setFilteredProducts(data.products || []);
+      } catch (e) {
+        console.error('Error fetching products:', e);
+        setError(e.message || 'Failed to load products');
+        setProducts([]);
+        setFilteredProducts([]);
+      } finally {
+        setIsLoading(false);
+      }
     }
-
-    if (organicOnly) {
-      filtered = filtered.filter(product => product.is_organic);
-    }
-
-    setFilteredProducts(filtered);
-  }, [products, searchTerm, selectedCategory, organicOnly]);
+    fetchProducts();
+  }, [searchTerm, selectedCategory, organicOnly]);
 
   const handleContactFarmer = (farmer) => {
     alert(`Contact ${farmer.name} at ${farmer.phone} or ${farmer.email}`);
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -150,7 +152,23 @@ export default function MarketplacePage() {
         </div>
 
         {/* Products Grid */}
-        {filteredProducts.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-12">
+            <Loader2 className="h-16 w-16 mx-auto text-green-600 animate-spin mb-4" />
+            <p className="text-gray-600">Loading products...</p>
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <div className="text-red-400 mb-4">
+              <Search className="h-16 w-16 mx-auto" />
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading products</h3>
+            <p className="text-gray-600">{error}</p>
+            <Button onClick={() => window.location.reload()} className="mt-4">
+              Retry
+            </Button>
+          </div>
+        ) : filteredProducts.length === 0 ? (
           <div className="text-center py-12">
             <div className="text-gray-400 mb-4">
               <Search className="h-16 w-16 mx-auto" />
@@ -231,18 +249,23 @@ export default function MarketplacePage() {
           </div>
         )}
 
-        {/* Call to Action */}
-        <div className="mt-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-lg p-8 text-center text-white">
-          <h2 className="text-3xl font-bold mb-4">Want to List Your Products?</h2>
-          <p className="text-xl mb-6">Join our marketplace and connect directly with buyers</p>
-          <Button size="lg" variant="secondary" asChild>
-            <Link href="/become-seller" className="flex items-center">
-              <Plus className="h-5 w-5 mr-2" />
-              Become a Seller
-            </Link>
-          </Button>
-        </div>
+        {/* Call to Action - Only show if user is not a vendor */}
+        {!isCheckingRole && userRole !== 'vendor' && (
+          <div className="mt-16 bg-gradient-to-r from-green-600 to-blue-600 rounded-lg p-8 text-center text-white">
+            <h2 className="text-3xl font-bold mb-4">Want to List Your Products?</h2>
+            <p className="text-xl mb-6">Join our marketplace and connect directly with buyers</p>
+            <Button size="lg" variant="secondary" asChild>
+              <Link href="/become-seller" className="flex items-center">
+                <Plus className="h-5 w-5 mr-2" />
+                Become a Seller
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
+
+export default MarketplacePage;

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { Search, Calendar, User, ExternalLink, Newspaper, TrendingUp } from 'lucide-react';
 
 const mockArticles = [
@@ -38,7 +39,7 @@ const mockArticles = [
   },
 ];
 
-export default function NewsPage() {
+function NewsPage() {
   const [articles, setArticles] = useState(mockArticles);
   const [filteredArticles, setFilteredArticles] = useState(mockArticles);
   const [searchTerm, setSearchTerm] = useState('');
@@ -104,7 +105,8 @@ export default function NewsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <div className="text-center mb-12">
@@ -207,6 +209,9 @@ export default function NewsPage() {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 }
+
+export default NewsPage;
