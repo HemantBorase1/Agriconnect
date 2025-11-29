@@ -1,71 +1,92 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import ProtectedRoute from '@/components/ProtectedRoute';
 import { 
   MapPin, 
   Mail, 
   Award, 
   MessageCircle,
-  DollarSign
+  DollarSign,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 
-const page = () => {
-  const formatPhoneForWhatsApp = (raw) => {
-    // wa.me expects only digits with country code (no +)
-    const digitsOnly = String(raw).replace(/\D/g, '');
-    return digitsOnly;
-  };
+// Memoized phone formatter to avoid recreating on every render
+const formatPhoneForWhatsApp = (raw) => {
+  if (!raw) return '';
+  return String(raw).replace(/\D/g, '');
+};
 
-  // Mock data for experienced farmers
-  const experiencedFarmers = [
-    {
-      id: 1,
-      name: "John Smith",
-      email: "john.smith@example.com",
-      address: "123 Farm Road, Green Valley, CA 90210",
-      phone: "+1 (555) 123-4567",
-      photo: "/api/placeholder/200/200",
-      experience: "15+ years",
-      guidanceFees: "$50/hour",
-      specialties: ["Organic Farming", "Crop Rotation", "Soil Management"]
-    },
-    {
-      id: 2,
-      name: "Maria Garcia",
-      email: "maria.garcia@example.com",
-      address: "456 Harvest Lane, Farmington, TX 75001",
-      phone: "+1 (555) 987-6543",
-      photo: "/api/placeholder/200/200",
-      experience: "12+ years",
-      guidanceFees: "$45/hour",
-      specialties: ["Livestock Management", "Pasture Rotation", "Animal Health"]
-    },
-    {
-      id: 3,
-      name: "David Chen",
-      email: "david.chen@example.com",
-      address: "789 Agriculture Blvd, Cornfield, IA 50001",
-      phone: "+1 (555) 456-7890",
-      photo: "/api/placeholder/200/200",
-      experience: "20+ years",
-      guidanceFees: "$60/hour",
-      specialties: ["Precision Agriculture", "Technology Integration", "Data Analysis"]
+const page = () => {
+  const [experiencedFarmers, setExperiencedFarmers] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchGuides = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      // Add cache control and abort signal for cancellation
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+      // Add timestamp to ensure fresh data
+      const resp = await fetch(`/api/guides?t=${Date.now()}`, {
+        signal: controller.signal,
+        cache: 'no-store', // Always fetch fresh data from server
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!resp.ok) {
+        throw new Error('Failed to fetch guides');
+      }
+      const data = await resp.json();
+      setExperiencedFarmers(data.guides || []);
+    } catch (e) {
+      if (e.name === 'AbortError') {
+        console.log('Request was cancelled');
+        return;
+      }
+      console.error('Error fetching guides:', e);
+      setError(e.message || 'Failed to load guides');
+      setExperiencedFarmers([]);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  }, []);
+
+  useEffect(() => {
+    fetchGuides();
+  }, [fetchGuides]);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <section className="bg-gradient-to-b from-green-50 to-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-6">
-              Expert <span className="text-green-600">Agricultural Guides</span>
-            </h1>
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <h1 className="text-4xl md:text-5xl font-bold text-gray-900">
+                Expert <span className="text-green-600">Agricultural Guides</span>
+              </h1>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={fetchGuides}
+                disabled={isLoading}
+                className="shrink-0"
+                title="Refresh guides"
+              >
+                <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
               Connect with experienced farmers and agricultural experts. Get personalized 
               guidance and mentorship to improve your farming practices and grow your business.
@@ -77,16 +98,47 @@ const page = () => {
       {/* Farmers Grid */}
       <section className="py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
-            {experiencedFarmers.map((farmer) => (
+          {isLoading ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-16 w-16 mx-auto text-green-600 animate-spin mb-4" />
+              <p className="text-gray-600">Loading guides...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <div className="text-red-400 mb-4">
+                <Award className="h-16 w-16 mx-auto" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Error loading guides</h3>
+              <p className="text-gray-600">{error}</p>
+              <Button onClick={fetchGuides} className="mt-4">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Retry
+              </Button>
+            </div>
+          ) : experiencedFarmers.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-4">
+                <Award className="h-16 w-16 mx-auto" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No guides available</h3>
+              <p className="text-gray-600">There are currently no experienced guides available. Check back later!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+              {experiencedFarmers.map((farmer) => {
+                const whatsappPhone = formatPhoneForWhatsApp(farmer.phone);
+                const whatsappUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent('Hello ' + farmer.name + ', I would like to get guidance.')}`;
+                const initials = farmer.name.split(' ').map(n => n[0]).join('').slice(0, 2);
+                
+                return (
               <Card key={farmer.id} className="hover:shadow-lg transition-all duration-300 border-0 shadow-md">
                 <CardHeader className="pb-4">
                   <div className="flex items-start justify-between">
                     <div className="flex items-center space-x-4">
                       <Avatar className="h-20 w-20 border-4 border-green-100">
-                        <AvatarImage src={farmer.photo} alt={farmer.name} />
+                        <AvatarImage src={farmer.photo || 'https://images.pexels.com/photos/1300972/pexels-photo-1300972.jpeg'} alt={farmer.name} loading="lazy" />
                         <AvatarFallback className="bg-green-100 text-green-700 text-lg font-semibold">
-                          {farmer.name.split(' ').map(n => n[0]).join('')}
+                          {initials}
                         </AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
@@ -151,7 +203,7 @@ const page = () => {
                   <div className="pt-4">
                     <Button asChild variant="outline" className="w-full border-green-600 text-green-700 hover:bg-green-50">
                       <a
-                        href={`https://wa.me/${formatPhoneForWhatsApp(farmer.phone)}?text=${encodeURIComponent('Hello ' + farmer.name + ', I would like to get guidance.')}`}
+                        href={whatsappUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label={`WhatsApp ${farmer.name}`}
@@ -163,8 +215,10 @@ const page = () => {
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
+              );
+              })}
+            </div>
+          )}
         </div>
       </section>
 
@@ -192,7 +246,8 @@ const page = () => {
           </div>
         </div>
       </section>
-    </div>
+      </div>
+    </ProtectedRoute>
   );
 };
 

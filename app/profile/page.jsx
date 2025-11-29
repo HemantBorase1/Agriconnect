@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import ProtectedRoute from '@/components/ProtectedRoute'
 import { CheckCircle2, X } from 'lucide-react'
 import {
   AlertDialog,
@@ -45,35 +46,8 @@ export default function ProfilePage() {
   const [profileImage, setProfileImage] = useState(null)
   const [imagePreview, setImagePreview] = useState(user.profile_picture_url || '')
 
-  // Mock products data - replace with real API calls later
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: 'Fresh Organic Tomatoes',
-      description: 'Freshly harvested organic tomatoes from our farm',
-      price: 45,
-      unit: 'kg',
-      quantity_available: 50,
-      category: 'vegetables',
-      location: 'Pune, Maharashtra',
-      is_organic: true,
-      image_url: '',
-      created_at: '2024-01-15',
-    },
-    {
-      id: 2,
-      name: 'Premium Basmati Rice',
-      description: 'High quality basmati rice, perfect for daily cooking',
-      price: 120,
-      unit: 'kg',
-      quantity_available: 25,
-      category: 'grains',
-      location: 'Pune, Maharashtra',
-      is_organic: false,
-      image_url: '',
-      created_at: '2024-01-10',
-    },
-  ])
+  // Actual products from API
+  const [products, setProducts] = useState([])
 
   const [showFarmerPopup, setShowFarmerPopup] = useState(false)
   const [isEditingRole, setIsEditingRole] = useState(false)
@@ -141,9 +115,39 @@ export default function ProfilePage() {
     }
   }
 
-  const onLogout = () => {
-    // TODO: clear auth state/session
-    router.push('/auth/signin')
+  const onLogout = async () => {
+    try {
+      // Sign out from Supabase
+      await supabase.auth.signOut()
+      
+      // Clear all local state
+      setUser({
+        name: '',
+        email: '',
+        profile_picture_url: '',
+        role: 'farmer',
+        address: '',
+      })
+      setEditData({
+        name: '',
+        address: '',
+        experience_years: 0,
+        specialties: '',
+        guidance_fees: ''
+      })
+      setProducts([])
+      setProfileImage(null)
+      setImagePreview('')
+      
+      // Redirect to home page
+      router.push('/')
+      router.refresh() // Force refresh to clear any cached data
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Even if there's an error, try to redirect
+      router.push('/')
+      router.refresh()
+    }
   }
 
   const onDeleteAccount = () => {
@@ -156,8 +160,27 @@ export default function ProfilePage() {
     router.push('/become-seller')
   }
 
-  const onDeleteProduct = (productId) => {
-    setProducts(prev => prev.filter(p => p.id !== productId))
+  const onDeleteProduct = async (productId) => {
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session?.data?.session?.access_token
+      if (!token) {
+        router.push('/auth/signin')
+        return
+      }
+      const resp = await fetch(`/api/products/${productId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}))
+        throw new Error(j.error || 'Failed to delete product')
+      }
+      setProducts(prev => prev.filter(p => p.id !== productId))
+    } catch (e) {
+      console.error(e)
+      alert(e.message || 'Failed to delete product')
+    }
   }
 
   const onEditProduct = (productId) => {
@@ -179,15 +202,47 @@ export default function ProfilePage() {
     setIsProductDialogOpen(true)
   }
 
-  const onSaveProduct = () => {
+  const onSaveProduct = async () => {
     if (editingProductId == null) return
-    setProducts(prev => prev.map(p => p.id === editingProductId ? {
-      ...p,
-      ...productEdit,
-      image_url: productImagePreview,
-    } : p))
-    setIsProductDialogOpen(false)
-    setEditingProductId(null)
+    try {
+      const session = await supabase.auth.getSession()
+      const token = session?.data?.session?.access_token
+      if (!token) {
+        router.push('/auth/signin')
+        return
+      }
+      const payload = {
+        name: productEdit.name,
+        description: productEdit.description,
+        price: productEdit.price,
+        unit: productEdit.unit,
+        quantity_available: productEdit.quantity_available,
+        category: productEdit.category,
+        location: productEdit.location,
+        is_organic: productEdit.is_organic,
+        image_base64: typeof productImagePreview === 'string' && productImagePreview.startsWith('data:') ? productImagePreview : undefined,
+        image_url: typeof productImagePreview === 'string' && !productImagePreview.startsWith('data:') ? productImagePreview : undefined,
+      }
+      const resp = await fetch(`/api/products/${editingProductId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      })
+      const json = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        throw new Error(json.error || 'Failed to update product')
+      }
+      const updated = json.product
+      setProducts(prev => prev.map(p => p.id === editingProductId ? { ...p, ...updated } : p))
+      setIsProductDialogOpen(false)
+      setEditingProductId(null)
+    } catch (e) {
+      console.error(e)
+      alert(e.message || 'Failed to update product')
+    }
   }
 
   const onChangeProfileImage = (e) => {
@@ -229,6 +284,7 @@ export default function ProfilePage() {
       const data = await resp.json()
       const u = data.user
       const p = data.profile
+      const prods = Array.isArray(data.products) ? data.products : []
       setUser({
         name: p?.name || '',
         email: u?.email || '',
@@ -244,12 +300,14 @@ export default function ProfilePage() {
         guidance_fees: p?.guidance_fees ?? '',
       })
       setImagePreview(p?.profile_picture_url || '')
+      setProducts(prods)
     }
     loadProfile()
   }, [router])
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <ProtectedRoute>
+      <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Profile Header */}
         <Card className="mb-8">
@@ -395,13 +453,10 @@ export default function ProfilePage() {
             </CardHeader>
             <CardContent>
               {products.length === 0 ? (
-                <div className="text-center py-12">
-                  <Package className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No products yet</h3>
-                  <p className="text-gray-600 mb-6">Start by adding your first product to the marketplace</p>
+                <div className="py-4">
                   <Button onClick={() => router.push('/become-seller')} className="bg-green-600 hover:bg-green-700">
                     <Plus className="w-4 h-4 mr-2" />
-                    Add Your First Product
+                    Add Product
                   </Button>
                 </div>
               ) : (
@@ -675,7 +730,8 @@ export default function ProfilePage() {
 
       {/* ✅ Saved Toast at bottom */}
       <SavedToast open={showSaved} onClose={() => setShowSaved(false)} />
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }
 

@@ -1,8 +1,12 @@
-import React from 'react'
+'use client'
+
+import React, { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import WeatherWidget from '@/components/WeatherWidget'
+import { checkAuth } from '@/lib/auth-utils'
 import {
   Users,
   ShoppingCart,
@@ -14,6 +18,27 @@ import {
 } from 'lucide-react'
 
 export default function Home() {
+  const router = useRouter()
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [isChecking, setIsChecking] = useState(true)
+
+  useEffect(() => {
+    async function checkAuthStatus() {
+      const { isAuthenticated: auth } = await checkAuth()
+      setIsAuthenticated(auth)
+      setIsChecking(false)
+    }
+    checkAuthStatus()
+  }, [])
+
+  const handleGetStarted = (e) => {
+    e.preventDefault()
+    if (isAuthenticated) {
+      router.push('/profile')
+    } else {
+      router.push('/auth/signin')
+    }
+  }
   return (
     <div className="min-h-screen">
       {/* Hero Section */}
@@ -29,8 +54,13 @@ export default function Home() {
               insights, direct marketplace access, and expert guidance.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" asChild className="bg-green-600 hover:bg-green-700">
-                <Link href="/auth/signup">Get Started</Link>
+              <Button 
+                size="lg" 
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handleGetStarted}
+                disabled={isChecking}
+              >
+                {isChecking ? 'Loading...' : 'Get Started'}
               </Button>
               <Button size="lg" variant="outline" asChild>
                 <Link href="/features">Learn More</Link>
@@ -194,10 +224,13 @@ export default function Home() {
             to grow their business and improve their farming practices.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" variant="secondary" asChild>
-              <Link href="/auth/signup">
-                Start Your Journey <ArrowRight className="ml-2 h-5 w-5" />
-              </Link>
+            <Button 
+              size="lg" 
+              variant="secondary"
+              onClick={handleGetStarted}
+              disabled={isChecking}
+            >
+              Start Your Journey <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
             <Button
               size="lg"

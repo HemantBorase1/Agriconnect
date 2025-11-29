@@ -32,7 +32,17 @@ export async function GET(request) {
 
     if (profErr) throw profErr
 
-    return NextResponse.json({ user: userRow, profile: profileRow })
+    // Fetch user's products
+    const { data: products, error: productsErr } = await supabaseAdmin
+      .from('organic_products')
+      .select('id, name, description, price, unit, quantity_available, category, location, is_organic, image_url, is_active, created_at')
+      .eq('farmer_id', userId)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+
+    if (productsErr) throw productsErr
+
+    return NextResponse.json({ user: userRow, profile: profileRow, products })
   } catch (err) {
     console.error('Profile GET error', err)
     return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 })
@@ -103,5 +113,6 @@ export async function PUT(request) {
     return NextResponse.json({ error: err?.message || 'Internal error' }, { status: 500 })
   }
 }
+
 
 
