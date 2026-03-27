@@ -4,7 +4,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageCircle, X, Send, Bot, User, Loader2 } from 'lucide-react';
 
 export default function FloatingAIAssistant() {
@@ -41,25 +40,51 @@ export default function FloatingAIAssistant() {
 
     const userMessage = {
       role: 'user',
-      content: inputMessage,
+      content: inputMessage.trim(),
       timestamp: new Date(),
     };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const nextMessages = [...messages, userMessage];
+    setMessages(nextMessages);
     setInputMessage('');
     setIsLoading(true);
 
-    // Mock AI reply instead of backend
-    setTimeout(() => {
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: nextMessages.map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to get a response');
+      }
+      const text = typeof data.reply === 'string' ? data.reply : '';
+      if (!text) {
+        throw new Error('Empty response from assistant');
+      }
       const assistantMessage = {
         role: 'assistant',
-        content:
-          "🌱 Here's a tip: Rotate your crops every season to improve soil fertility and reduce pests.",
+        content: text,
         timestamp: new Date(),
       };
       setMessages((prev) => [...prev, assistantMessage]);
+    } catch (e) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content:
+            e?.message ||
+            'Something went wrong. Please try again in a moment.',
+          timestamp: new Date(),
+        },
+      ]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const handleKeyPress = (e) => {
@@ -107,9 +132,9 @@ export default function FloatingAIAssistant() {
             </Button>
           </CardHeader>
 
-          <CardContent className="flex-1 flex flex-col p-0">
+          <CardContent className="flex-1 min-h-0 flex flex-col p-0">
             {/* Messages Area */}
-            <ScrollArea className="flex-1 p-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4">
               <div className="space-y-4">
                 {messages.map((message, index) => (
                   <div
@@ -165,7 +190,7 @@ export default function FloatingAIAssistant() {
                 )}
                 <div ref={messagesEndRef} />
               </div>
-            </ScrollArea>
+            </div>
 
             {/* Input Area */}
             <div className="border-t p-4">

@@ -14,23 +14,39 @@ import {
   CloudRain, 
   MapPin,
   RefreshCw,
-  Search
+  Search,
+  Loader2
 } from 'lucide-react';
 
-const mockWeather = {
-  location: 'Sample City',
-  temperature: 28,
-  description: 'partly cloudy',
-  humidity: 65,
-  windSpeed: 3.2,
-  icon: '02d'
-};
-
 function WeatherPage() {
-  const [weather, setWeather] = useState(mockWeather);
+  const [weather, setWeather] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [citySearch, setCitySearch] = useState('');
+
+  const fetchWeather = async ({ city, lat, lon } = {}) => {
+    setError(null);
+    setLoading(true);
+    try {
+      const params = new URLSearchParams()
+      if (city && city.trim().length > 0) params.set('city', city.trim())
+      if (lat != null && lon != null) {
+        params.set('lat', String(lat))
+        params.set('lon', String(lon))
+      }
+
+      const res = await fetch(`/api/weather?${params.toString()}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch weather')
+
+      setWeather(data)
+    } catch (e) {
+      setWeather(null)
+      setError(e?.message || 'Failed to fetch weather')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const getWeatherIcon = (iconCode) => {
     if (iconCode.includes('01')) return <Sun className="h-12 w-12 text-yellow-500" />;
@@ -102,6 +118,41 @@ function WeatherPage() {
     };
   };
 
+  const handleSearch = () => {
+    if (!citySearch.trim()) return
+    fetchWeather({ city: citySearch })
+  }
+
+  const handleCurrentLocation = async () => {
+    if (!navigator.geolocation) {
+      setError('Geolocation is not supported in this browser')
+      return
+    }
+
+    setError(null)
+    setLoading(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        fetchWeather({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        })
+      },
+      (geoErr) => {
+        setLoading(false)
+        setError(geoErr?.message || 'Unable to get current location')
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  useEffect(() => {
+    // Default location so the UI isn't empty on first load.
+    // Change this city if you want a different default.
+    fetchWeather({ city: 'New Delhi' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   return (
     <ProtectedRoute>
       <div className="min-h-screen bg-gray-50 py-12">
@@ -123,12 +174,22 @@ function WeatherPage() {
                 placeholder="Search for a city..."
                 value={citySearch}
                 onChange={(e) => setCitySearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearch()
+                }}
                 className="pl-10"
               />
             </div>
-            <Button className="flex items-center space-x-2">
+            <Button
+              type="button"
+              onClick={handleCurrentLocation}
+              disabled={loading}
+              className="flex items-center space-x-2"
+            >
               <RefreshCw className="h-4 w-4" />
-              <span>Current Location</span>
+              <span>
+                {loading ? 'Fetching...' : 'Current Location'}
+              </span>
             </Button>
           </div>
         </div>
@@ -200,6 +261,13 @@ function WeatherPage() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        )}
+
+        {loading && !weather && (
+          <div className="flex items-center justify-center py-10 text-gray-600">
+            <Loader2 className="w-6 h-6 animate-spin mr-2" />
+            <span>Loading weather...</span>
           </div>
         )}
 

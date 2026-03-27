@@ -1,32 +1,54 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Cloud, Droplets, Wind } from 'lucide-react'
 
 export default function WeatherWidget() {
   const [weather, setWeather] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  const fetchWeather = useCallback(async ({ lat, lon }) => {
+    setError(null)
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.set('lat', String(lat))
+      params.set('lon', String(lon))
+      const res = await fetch(`/api/weather?${params.toString()}`)
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Failed to fetch weather')
+      setWeather(data)
+    } catch (e) {
+      setWeather(null)
+      setError(e?.message || 'Failed to fetch weather')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
-    // Fake fetch with dummy data
-    const fetchWeather = () => {
-      setLoading(true)
-      setTimeout(() => {
-        setWeather({
-          location: 'New Delhi',
-          temperature: 29,
-          description: 'clear sky',
-          humidity: 52,
-          windSpeed: 3.5,
-          icon: '01d', // OpenWeatherMap icon code
-        })
-        setLoading(false)
-      }, 1200) // simulate network delay
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      setError('Geolocation is not supported in this browser')
+      setLoading(false)
+      return
     }
 
-    fetchWeather()
-  }, [])
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        fetchWeather({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        })
+      },
+      (geoErr) => {
+        setLoading(false)
+        setError(geoErr?.message || 'Unable to get current location')
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }, [fetchWeather])
 
   if (loading) {
     return (
@@ -47,7 +69,7 @@ export default function WeatherWidget() {
     )
   }
 
-  if (!weather) {
+  if (error || !weather) {
     return (
       <Card className="w-full max-w-md">
         <CardHeader>
@@ -57,11 +79,18 @@ export default function WeatherWidget() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-600">Unable to fetch weather data</p>
+          <p className="text-sm text-gray-600">
+            {error || 'Unable to fetch weather data'}
+          </p>
         </CardContent>
       </Card>
     )
   }
+
+  const temp =
+    typeof weather.temperature === 'number'
+      ? Math.round(weather.temperature)
+      : '—'
 
   return (
     <Card className="w-full max-w-md">
@@ -80,7 +109,7 @@ export default function WeatherWidget() {
               className="w-12 h-12"
             />
             <div>
-              <p className="text-2xl font-bold">{weather.temperature}°C</p>
+              <p className="text-2xl font-bold">{temp}°C</p>
               <p className="text-sm text-gray-600 capitalize">{weather.description}</p>
             </div>
           </div>
@@ -88,11 +117,15 @@ export default function WeatherWidget() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="flex items-center space-x-2">
             <Droplets className="h-4 w-4 text-blue-500" />
-            <span>{weather.humidity}% Humidity</span>
+            <span>
+              {weather.humidity != null ? `${weather.humidity}%` : '—'} Humidity
+            </span>
           </div>
           <div className="flex items-center space-x-2">
             <Wind className="h-4 w-4 text-gray-500" />
-            <span>{weather.windSpeed} m/s Wind</span>
+            <span>
+              {weather.windSpeed != null ? `${weather.windSpeed} m/s` : '—'} Wind
+            </span>
           </div>
         </div>
       </CardContent>
