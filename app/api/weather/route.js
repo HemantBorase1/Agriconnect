@@ -10,6 +10,7 @@ function getOpenWeatherApiKey() {
   )
 }
 
+
 function buildWeatherPayload(openWeatherData) {
   const weather0 = Array.isArray(openWeatherData?.weather) ? openWeatherData.weather[0] : null
 
