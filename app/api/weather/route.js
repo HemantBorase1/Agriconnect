@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+
 function getOpenWeatherApiKey() {
   return (
     process.env.OPENWEATHER_API_KEY ||
