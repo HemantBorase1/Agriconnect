@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 
+
 function getOpenWeatherApiKey() {
   return (
     process.env.OPENWEATHER_API_KEY ||
@@ -8,6 +9,7 @@ function getOpenWeatherApiKey() {
     null
   )
 }
+
 
 function buildWeatherPayload(openWeatherData) {
   const weather0 = Array.isArray(openWeatherData?.weather) ? openWeatherData.weather[0] : null

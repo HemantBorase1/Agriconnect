@@ -20,7 +20,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
-import { User, LogOut, Settings, ShoppingCart, Cloud, Newspaper, Menu,Book } from 'lucide-react';
+import { User, LogOut, Settings, ShoppingCart, Cloud, Newspaper, Menu, Book, Sprout } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 export default function Navbar() {
@@ -112,8 +112,9 @@ export default function Navbar() {
     { href: '/features', label: 'Features' },
     { href: '/marketplace', label: 'Marketplace', icon: ShoppingCart, protected: true },
     { href: '/guide', label: 'Guide', icon: Book, protected: true },
+    { href: '/organic_path', label: 'Organic Path', icon: Sprout, protected: true },
     { href: '/weather', label: 'Weather', icon: Cloud, protected: true },
-    { href: '/news', label: 'News', icon: Newspaper, protected: true },
+    /*{ href: '/news', label: 'News', icon: Newspaper, protected: true },*/
   ];
 
   const handleNavClick = (e, item) => {

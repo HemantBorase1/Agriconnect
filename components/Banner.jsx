@@ -9,22 +9,19 @@ export default function Banner() {
   const [isVisible, setIsVisible] = useState(true);
 
   useEffect(() => {
-    // Mock banners (replace with API later if needed)
-    const mockBanners = [
-      {
-        id: '1',
-        title: 'Welcome to Our Platform 🚀',
-        image_url: 'https://img.freepik.com/premium-photo/young-indian-farmer-green-agriculture-field_75648-6244.jpg?semt=ais_hybrid&w=300&q=80',
-        link_url: 'https://img.freepik.com/premium-photo/young-indian-farmer-green-agriculture-field_75648-6244.jpg?semt=ais_hybrid&w=740&q=80',
-      },
-      {
-        id: '2',
-        title: 'Get 50% Off on Premium 🎉',
-        image_url: 'https://t3.ftcdn.net/jpg/01/79/21/34/360_F_179213490_XwLljMBYRBUY0hvnr1VhAbYTqcqcs35F.jpg',
-        link_url: 'https://t3.ftcdn.net/jpg/01/79/21/34/360_F_179213490_XwLljMBYRBUY0hvnr1VhAbYTqcqcs35F.jpg',
-      },
-    ];
-    setBanners(mockBanners);
+    async function fetchBanners() {
+      try {
+        const response = await fetch('/api/banners', { cache: 'no-store' });
+        if (!response.ok) throw new Error('Failed to fetch banners');
+        const data = await response.json();
+        setBanners(Array.isArray(data?.banners) ? data.banners : []);
+      } catch (error) {
+        console.error('Banner fetch error:', error);
+        setBanners([]);
+      }
+    }
+
+    fetchBanners();
   }, []);
 
   useEffect(() => {
@@ -56,9 +53,9 @@ export default function Banner() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-medium">{banner.title}</p>
-              {banner.link_url && (
+              {banner.link && (
                 <a
-                  href={banner.link_url}
+                  href={banner.link}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-blue-100 hover:text-white underline"
